@@ -2,17 +2,17 @@
  * SQLite database layer for Memento
  */
 
-import Database from "better-sqlite3";
+import type { DatabaseSync } from "node:sqlite";
 import type { Memory, MemoryRelationship } from "./types.js";
 
 export interface MementoDatabase {
-  db: Database.Database;
+  db: DatabaseSync;
 }
 
 /**
  * Initialize the database schema
  */
-export function initializeSchema(db: Database.Database): void {
+export function initializeSchema(db: DatabaseSync): void {
   // Main memories table
   db.exec(`
     CREATE TABLE IF NOT EXISTS memories (
@@ -27,19 +27,13 @@ export function initializeSchema(db: Database.Database): void {
       related_to TEXT, -- JSON array of relationships
       metadata TEXT, -- JSON object
       embedding BLOB -- Optional vector embedding
-    )
-  `);
-
-  // Index for common queries
-  db.exec(`
+    );
+    
     CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
     CREATE INDEX IF NOT EXISTS idx_memories_agent_id ON memories(agent_id);
     CREATE INDEX IF NOT EXISTS idx_memories_timestamp ON memories(timestamp);
     CREATE INDEX IF NOT EXISTS idx_memories_superseded_by ON memories(superseded_by);
-  `);
-
-  // FTS5 virtual table for full-text search
-  db.exec(`
+    
     CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
       id UNINDEXED,
       type,
@@ -47,10 +41,7 @@ export function initializeSchema(db: Database.Database): void {
       content='memories',
       content_rowid='rowid'
     );
-  `);
-
-  // Triggers to keep FTS table in sync
-  db.exec(`
+    
     CREATE TRIGGER IF NOT EXISTS memories_fts_insert AFTER INSERT ON memories BEGIN
       INSERT INTO memories_fts(rowid, id, type, content)
       VALUES (new.rowid, new.id, new.type, new.content);
@@ -109,7 +100,7 @@ export function rowToMemory(row: {
 /**
  * Insert a memory into the database
  */
-export function insertMemory(db: Database.Database, memory: Memory): void {
+export function insertMemory(db: DatabaseSync, memory: Memory): void {
   const stmt = db.prepare(`
     INSERT INTO memories (
       id, type, content, agent_id, session_key, timestamp,
@@ -135,7 +126,11 @@ export function insertMemory(db: Database.Database, memory: Memory): void {
 /**
  * Update superseded_by field for memories
  */
-export function markAsSuperseded(db: Database.Database, memoryIds: string[], supersededBy: string): void {
+export function markAsSuperseded(
+  db: DatabaseSync,
+  memoryIds: string[],
+  supersededBy: string,
+): void {
   if (memoryIds.length === 0) return;
 
   const placeholders = memoryIds.map(() => "?").join(",");
@@ -152,7 +147,7 @@ export function markAsSuperseded(db: Database.Database, memoryIds: string[], sup
  * Add a relationship between memories
  */
 export function addRelationship(
-  db: Database.Database,
+  db: DatabaseSync,
   fromId: string,
   toId: string,
   type: string,
@@ -178,7 +173,7 @@ export function addRelationship(
 /**
  * Get memory by ID
  */
-export function getMemoryById(db: Database.Database, id: string): Memory | null {
+export function getMemoryById(db: DatabaseSync, id: string): Memory | null {
   const stmt = db.prepare(`
     SELECT * FROM memories WHERE id = ?
   `);
@@ -199,7 +194,7 @@ export function getMemoryById(db: Database.Database, id: string): Memory | null 
 /**
  * Check if a memory has already been superseded
  */
-export function isSuperseded(db: Database.Database, id: string): boolean {
+export function isSuperseded(db: DatabaseSync, id: string): boolean {
   const stmt = db.prepare(`
     SELECT superseded_by FROM memories WHERE id = ?
   `);
@@ -211,43 +206,41 @@ export function isSuperseded(db: Database.Database, id: string): boolean {
 /**
  * Get supersession chain (all versions of a memory)
  */
-export function getSupersessionChain(db: Database.Database, id: string): Memory[] {
+export function getSupersessionChain(db: DatabaseSync, id: string): Memory[] {
   const chain: Memory[] = [];
   const visited = new Set<string>();
-  
+
   // Get the starting memory
-  let current = getMemoryById(db, id);
-  if (!current) {
+  const start = getMemoryById(db, id);
+  if (!start) {
     return chain;
   }
 
   // Walk backwards to find the root
-  while (current.supersedes.length > 0 && !visited.has(current.id)) {
-    visited.add(current.id);
-    chain.unshift(current);
-    
-    // Find the first predecessor
+  let current = start;
+  while (current.supersedes.length > 0) {
     const prevId = current.supersedes[0];
     const prev = getMemoryById(db, prevId);
-    if (!prev) break;
-    
+    if (!prev || visited.has(prev.id)) break;
+
+    visited.add(current.id);
     current = prev;
   }
 
-  // Add the root if not already added
-  if (!visited.has(current.id)) {
-    chain.unshift(current);
-    visited.add(current.id);
-  }
+  // Now current is the root, build the chain forward
+  visited.clear();
+  const root = current;
+  chain.push(root);
+  visited.add(root.id);
 
-  // Walk forward to find all successors
-  let nextId = current.supersededBy;
+  // Walk forward from root to end
+  let nextId = root.supersededBy;
   while (nextId && !visited.has(nextId)) {
     const next = getMemoryById(db, nextId);
     if (!next) break;
-    
-    visited.add(next.id);
+
     chain.push(next);
+    visited.add(next.id);
     nextId = next.supersededBy;
   }
 

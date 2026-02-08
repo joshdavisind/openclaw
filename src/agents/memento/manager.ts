@@ -2,7 +2,7 @@
  * Memento manager implementation
  */
 
-import Database from "better-sqlite3";
+import type { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import type {
   ConflictResult,
@@ -11,6 +11,7 @@ import type {
   Memory,
   SearchMemoryParams,
 } from "./types.js";
+import { requireNodeSqlite } from "../../memory/sqlite.js";
 import {
   addRelationship,
   getMemoryById,
@@ -27,11 +28,11 @@ export interface MementoManagerOptions {
 }
 
 export class MementoManager implements Memento {
-  private db: Database.Database;
+  private db: DatabaseSync;
 
   constructor(options: MementoManagerOptions) {
-    this.db = new Database(options.dbPath);
-    this.db.pragma("journal_mode = WAL");
+    const { DatabaseSync } = requireNodeSqlite();
+    this.db = new DatabaseSync(options.dbPath);
     initializeSchema(this.db);
   }
 
@@ -53,7 +54,8 @@ export class MementoManager implements Memento {
 
     // If superseding other memories, do it in a transaction
     if (memory.supersedes.length > 0) {
-      this.db.transaction(() => {
+      this.db.exec("BEGIN TRANSACTION");
+      try {
         // Validate that all memories to supersede exist and aren't already superseded
         for (const oldId of memory.supersedes) {
           if (isSuperseded(this.db, oldId)) {
@@ -70,7 +72,12 @@ export class MementoManager implements Memento {
 
         // Mark old memories as superseded
         markAsSuperseded(this.db, memory.supersedes, memory.id);
-      })();
+
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
     } else {
       insertMemory(this.db, memory);
     }
@@ -91,7 +98,10 @@ export class MementoManager implements Memento {
   /**
    * Supersede a single memory
    */
-  async supersede(oldId: string, newParams: Omit<CreateMemoryParams, "supersedes">): Promise<Memory> {
+  async supersede(
+    oldId: string,
+    newParams: Omit<CreateMemoryParams, "supersedes">,
+  ): Promise<Memory> {
     return this.add({ ...newParams, supersedes: [oldId] });
   }
 
