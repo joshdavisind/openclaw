@@ -1,0 +1,21 @@
+{
+  "name": "@openclaw/skill-memento",
+  "version": "1.0.0",
+  "description": "Structured memory storage with JSONL and SQLite",
+  "type": "module",
+  "main": "memento.js",
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "openclaw",
+    "memory",
+    "storage",
+    "sqlite"
+  ],
+  "author": "OpenClaw",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.7.0"
+  }
+}
