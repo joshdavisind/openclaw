@@ -239,6 +239,14 @@ const entries: SubCliEntry[] = [
       mod.registerCompletionCli(program);
     },
   },
+  {
+    name: "memento",
+    description: "Structured memory consolidation",
+    register: async (program) => {
+      const mod = await import("../memento-cli.js");
+      mod.registerMementoCli(program);
+    },
+  },
 ];
 
 export function getSubCliEntries(): SubCliEntry[] {
