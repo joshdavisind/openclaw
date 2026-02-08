@@ -134,7 +134,7 @@ export class MementoManager implements Memento {
     } = params;
 
     let sql: string;
-    const sqlParams: unknown[] = [];
+    const sqlParams: (string | number)[] = [];
 
     if (query) {
       // Use FTS5 for text search

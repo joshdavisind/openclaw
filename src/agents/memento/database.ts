@@ -131,7 +131,9 @@ export function markAsSuperseded(
   memoryIds: string[],
   supersededBy: string,
 ): void {
-  if (memoryIds.length === 0) return;
+  if (memoryIds.length === 0) {
+    return;
+  }
 
   const placeholders = memoryIds.map(() => "?").join(",");
   const stmt = db.prepare(`
@@ -221,7 +223,9 @@ export function getSupersessionChain(db: DatabaseSync, id: string): Memory[] {
   while (current.supersedes.length > 0) {
     const prevId = current.supersedes[0];
     const prev = getMemoryById(db, prevId);
-    if (!prev || visited.has(prev.id)) break;
+    if (!prev || visited.has(prev.id)) {
+      break;
+    }
 
     visited.add(current.id);
     current = prev;
@@ -237,7 +241,9 @@ export function getSupersessionChain(db: DatabaseSync, id: string): Memory[] {
   let nextId = root.supersededBy;
   while (nextId && !visited.has(nextId)) {
     const next = getMemoryById(db, nextId);
-    if (!next) break;
+    if (!next) {
+      break;
+    }
 
     chain.push(next);
     visited.add(next.id);

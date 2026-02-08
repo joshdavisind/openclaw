@@ -41,26 +41,26 @@ When adding a memory, the system checks for potential conflicts:
 
 ```typescript
 interface Memory {
-  id: string;                      // UUID
-  type: string;                    // e.g., "fact", "preference", "decision"
-  content: string;                 // The actual information
-  embedding?: Float32Array;        // Vector representation for semantic search
-  
+  id: string; // UUID
+  type: string; // e.g., "fact", "preference", "decision"
+  content: string; // The actual information
+  embedding?: Float32Array; // Vector representation for semantic search
+
   // Source tracking
   agentId: string;
   sessionKey?: string;
-  timestamp: number;               // Unix timestamp (ms)
-  
+  timestamp: number; // Unix timestamp (ms)
+
   // Supersession
-  supersedes: string[];            // IDs of memories this replaces
-  supersededBy?: string;           // ID of memory that replaced this one
-  
+  supersedes: string[]; // IDs of memories this replaces
+  supersededBy?: string; // ID of memory that replaced this one
+
   // Relationships
   relatedTo?: Array<{
-    type: string;                  // e.g., "supports", "conflicts", "references"
+    type: string; // e.g., "supports", "conflicts", "references"
     targetId: string;
   }>;
-  
+
   // Metadata
   metadata?: Record<string, unknown>;
 }
@@ -82,17 +82,17 @@ Memories are stored in SQLite with:
 ```typescript
 interface MementoWriter {
   // Add a new memory
-  add(memory: Omit<Memory, 'id' | 'timestamp'>): Promise<Memory>;
-  
+  add(memory: Omit<Memory, "id" | "timestamp">): Promise<Memory>;
+
   // Add a memory that supersedes existing ones
   addSuperseding(
-    memory: Omit<Memory, 'id' | 'timestamp' | 'supersedes'>,
-    supersedes: string[]
+    memory: Omit<Memory, "id" | "timestamp" | "supersedes">,
+    supersedes: string[],
   ): Promise<Memory>;
-  
+
   // Convenience method to supersede a single memory
-  supersede(oldId: string, newMemory: Omit<Memory, 'id' | 'timestamp'>): Promise<Memory>;
-  
+  supersede(oldId: string, newMemory: Omit<Memory, "id" | "timestamp">): Promise<Memory>;
+
   // Mark memories as related
   relate(fromId: string, toId: string, type: string): Promise<void>;
 }
@@ -104,25 +104,24 @@ interface MementoWriter {
 interface MementoReader {
   // Get memory by ID
   get(id: string): Promise<Memory | null>;
-  
+
   // Search memories
   search(params: {
-    query?: string;              // Text or semantic search
-    type?: string | string[];    // Filter by type
-    minScore?: number;           // Similarity threshold
+    query?: string; // Text or semantic search
+    type?: string | string[]; // Filter by type
+    minScore?: number; // Similarity threshold
     maxResults?: number;
     includeSuperseded?: boolean; // Include superseded memories (default: false)
   }): Promise<Memory[]>;
-  
+
   // Check for conflicts with proposed memory
-  checkConflicts(memory: {
-    type: string;
-    content: string;
-  }): Promise<Array<{
-    memory: Memory;
-    similarity: number;
-  }>>;
-  
+  checkConflicts(memory: { type: string; content: string }): Promise<
+    Array<{
+      memory: Memory;
+      similarity: number;
+    }>
+  >;
+
   // Get supersession chain
   getSupersessionChain(id: string): Promise<Memory[]>;
 }
@@ -159,11 +158,13 @@ interface MementoReader {
 ### Source Provenance
 
 All write operations must include:
+
 - Agent ID (who created this memory)
 - Optional session key (context of creation)
 - Automatic timestamp
 
 This enables:
+
 - Audit trail
 - Agent-specific memory filtering
 - Temporal reasoning
@@ -222,6 +223,7 @@ Memento is separate from the existing markdown-based memory search:
 - Memento: structured database of discrete memory entries
 
 Both systems can coexist:
+
 - Use memory search for document retrieval
 - Use memento for structured facts, preferences, decisions
 - Consider future integration where memento entries can reference memory search results

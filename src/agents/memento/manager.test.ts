@@ -252,7 +252,7 @@ describe("MementoManager", () => {
         agentId: "agent-1",
       });
 
-      const mem2 = await memento.supersede(mem1.id, {
+      await memento.supersede(mem1.id, {
         type: "fact",
         content: "Second",
         agentId: "agent-1",
