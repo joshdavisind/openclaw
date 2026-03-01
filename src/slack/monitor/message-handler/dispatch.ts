@@ -109,25 +109,47 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
   });
 
   const typingTarget = statusThreadTs ? `${message.channel}/${statusThreadTs}` : message.channel;
+  // When replyToMode is "off" (no thread), fall back to a reaction-based typing indicator
+  // since Slack's Assistants API thread status requires a thread.
+  const TYPING_REACTION = "speech_balloon";
+  const useReactionTyping = !statusThreadTs && messageTs;
   const typingCallbacks = createTypingCallbacks({
     start: async () => {
       didSetStatus = true;
-      await ctx.setSlackThreadStatus({
-        channelId: message.channel,
-        threadTs: statusThreadTs,
-        status: "is typing...",
-      });
+      if (useReactionTyping) {
+        await ctx.app.client.reactions.add({
+          token: ctx.botToken,
+          channel: message.channel,
+          timestamp: messageTs!,
+          name: TYPING_REACTION,
+        });
+      } else {
+        await ctx.setSlackThreadStatus({
+          channelId: message.channel,
+          threadTs: statusThreadTs,
+          status: "is typing...",
+        });
+      }
     },
     stop: async () => {
       if (!didSetStatus) {
         return;
       }
       didSetStatus = false;
-      await ctx.setSlackThreadStatus({
-        channelId: message.channel,
-        threadTs: statusThreadTs,
-        status: "",
-      });
+      if (useReactionTyping) {
+        await ctx.app.client.reactions.remove({
+          token: ctx.botToken,
+          channel: message.channel,
+          timestamp: messageTs!,
+          name: TYPING_REACTION,
+        }).catch(() => {});
+      } else {
+        await ctx.setSlackThreadStatus({
+          channelId: message.channel,
+          threadTs: statusThreadTs,
+          status: "",
+        });
+      }
     },
     onStartError: (err) => {
       logTypingFailure({

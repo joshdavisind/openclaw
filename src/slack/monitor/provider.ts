@@ -366,6 +366,18 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
         | undefined;
 
       if (socketClient) {
+        // --- Socket ping keepalive ---
+        // Shorten the server ping timeout so stale connections are detected faster.
+        // The SDK defaults to 30s; 15s catches dead sockets sooner without being
+        // so aggressive that normal latency spikes trigger false disconnects.
+        const sc = socketClient as unknown as Record<string, unknown>;
+        if (typeof sc.serverPingTimeoutMS === "number") {
+          sc.serverPingTimeoutMS = 15_000;
+        }
+        if (typeof sc.clientPingTimeoutMS === "number") {
+          sc.clientPingTimeoutMS = 5_000;
+        }
+
         // --- Reconnect mutex ---
         // Upstream bug (slackapi/node-slack-sdk#2094): the close handler calls
         // delayReconnectAttempt(this.start) fire-and-forget. When multiple close
