@@ -26,6 +26,32 @@ function hasMedia(payload: ReplyPayload): boolean {
   return Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
 }
 
+const TOOL_STATUS_MAP: Record<string, string> = {
+  exec: "Running a command…",
+  bash: "Running a command…",
+  process: "Running a command…",
+  read: "Reading files…",
+  write: "Writing files…",
+  edit: "Editing files…",
+  web_search: "Searching the web…",
+  "web-search": "Searching the web…",
+  web_fetch: "Fetching a page…",
+  "web-fetch": "Fetching a page…",
+  browser: "Browsing…",
+  memento: "Searching memory…",
+  memory_search: "Searching memory…",
+  "memory-search": "Searching memory…",
+  image: "Generating an image…",
+};
+
+function resolveToolStatusText(toolName?: string): string {
+  if (!toolName) {
+    return "is thinking…";
+  }
+  const normalized = toolName.trim().toLowerCase();
+  return TOOL_STATUS_MAP[normalized] ?? `Using ${toolName}…`;
+}
+
 export function isSlackStreamingEnabled(params: {
   mode: "off" | "partial" | "block" | "progress";
   nativeStreaming: boolean;
@@ -109,47 +135,25 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
   });
 
   const typingTarget = statusThreadTs ? `${message.channel}/${statusThreadTs}` : message.channel;
-  // When replyToMode is "off" (no thread), fall back to a reaction-based typing indicator
-  // since Slack's Assistants API thread status requires a thread.
-  const TYPING_REACTION = "speech_balloon";
-  const useReactionTyping = !statusThreadTs && messageTs;
   const typingCallbacks = createTypingCallbacks({
     start: async () => {
       didSetStatus = true;
-      if (useReactionTyping) {
-        await ctx.app.client.reactions.add({
-          token: ctx.botToken,
-          channel: message.channel,
-          timestamp: messageTs!,
-          name: TYPING_REACTION,
-        });
-      } else {
-        await ctx.setSlackThreadStatus({
-          channelId: message.channel,
-          threadTs: statusThreadTs,
-          status: "is typing...",
-        });
-      }
+      await ctx.setSlackThreadStatus({
+        channelId: message.channel,
+        threadTs: statusThreadTs,
+        status: "is typing…",
+      });
     },
     stop: async () => {
       if (!didSetStatus) {
         return;
       }
       didSetStatus = false;
-      if (useReactionTyping) {
-        await ctx.app.client.reactions.remove({
-          token: ctx.botToken,
-          channel: message.channel,
-          timestamp: messageTs!,
-          name: TYPING_REACTION,
-        }).catch(() => {});
-      } else {
-        await ctx.setSlackThreadStatus({
-          channelId: message.channel,
-          threadTs: statusThreadTs,
-          status: "",
-        });
-      }
+      await ctx.setSlackThreadStatus({
+        channelId: message.channel,
+        threadTs: statusThreadTs,
+        status: "",
+      });
     },
     onStartError: (err) => {
       logTypingFailure({
@@ -406,6 +410,13 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
           ? !account.config.blockStreaming
           : undefined,
       onModelSelected,
+      onToolStart: async (payload) => {
+        await ctx.setSlackThreadStatus({
+          channelId: message.channel,
+          threadTs: statusThreadTs,
+          status: resolveToolStatusText(payload.name),
+        });
+      },
       onPartialReply: useStreaming
         ? undefined
         : !previewStreamingEnabled
