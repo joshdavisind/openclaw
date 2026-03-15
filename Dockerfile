@@ -36,6 +36,8 @@ RUN apt-get update && \
       imagemagick \
       ghostscript \
       openssh-client \
+      syncthing \
+      ffmpeg \
     && \
     echo 'node ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg, /usr/bin/apt' \
       > /etc/sudoers.d/vesper-maintenance && \
