@@ -182,6 +182,35 @@ RUN if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
+# Install GitHub CLI (gh) for repository management skills
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# GOR-189: Self-maintenance — targeted sudo + common system packages
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      sudo \
+      libreoffice-impress \
+      poppler-utils \
+      imagemagick \
+      ghostscript \
+      openssh-client \
+      syncthing \
+      ffmpeg \
+    && \
+    echo 'node ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg, /usr/bin/apt' \
+      > /etc/sudoers.d/vesper-maintenance && \
+    chmod 0440 /etc/sudoers.d/vesper-maintenance && \
+    groupadd -g 988 docker 2>/dev/null; usermod -aG docker node && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
 # Normalize extension paths so plugin safety checks do not reject
 # world-writable directories inherited from source file modes.
 RUN for dir in /app/extensions /app/.agent /app/.agents; do \
