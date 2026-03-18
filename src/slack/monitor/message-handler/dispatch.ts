@@ -31,6 +31,32 @@ function hasMedia(payload: ReplyPayload): boolean {
   return Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
 }
 
+const TOOL_STATUS_MAP: Record<string, string> = {
+  exec: "Running a command…",
+  bash: "Running a command…",
+  process: "Running a command…",
+  read: "Reading files…",
+  write: "Writing files…",
+  edit: "Editing files…",
+  web_search: "Searching the web…",
+  "web-search": "Searching the web…",
+  web_fetch: "Fetching a page…",
+  "web-fetch": "Fetching a page…",
+  browser: "Browsing…",
+  memento: "Searching memory…",
+  memory_search: "Searching memory…",
+  "memory-search": "Searching memory…",
+  image: "Generating an image…",
+};
+
+function resolveToolStatusText(toolName?: string): string {
+  if (!toolName) {
+    return "is thinking…";
+  }
+  const normalized = toolName.trim().toLowerCase();
+  return TOOL_STATUS_MAP[normalized] ?? `Using ${toolName}…`;
+}
+
 export function isSlackStreamingEnabled(params: {
   mode: "off" | "partial" | "block" | "progress";
   nativeStreaming: boolean;
@@ -441,6 +467,13 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
           ? !account.config.blockStreaming
           : undefined,
       onModelSelected,
+      onToolStart: async (payload: { name?: string }) => {
+        await ctx.setSlackThreadStatus({
+          channelId: message.channel,
+          threadTs: statusThreadTs,
+          status: resolveToolStatusText(payload.name),
+        });
+      },
       onPartialReply: useStreaming
         ? undefined
         : !previewStreamingEnabled
