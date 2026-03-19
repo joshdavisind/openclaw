@@ -40,15 +40,46 @@ export function formatBillingErrorMessage(provider?: string, model?: string): st
 export const BILLING_ERROR_USER_MESSAGE = formatBillingErrorMessage();
 
 const RATE_LIMIT_ERROR_USER_MESSAGE = "⚠️ API rate limit reached. Please try again later.";
-const OVERLOADED_ERROR_USER_MESSAGE =
+const OVERLOADED_ERROR_USER_MESSAGE_DEFAULT =
   "The AI service is temporarily overloaded. Please try again in a moment.";
+
+/**
+ * Load a random overloaded error phrase from a workspace-provided phrase file.
+ * Falls back to the default if the file is missing or unreadable.
+ *
+ * The phrase file is expected at <workspace>/memory/fog-phrases.json with the
+ * shape { storm: string[], fog: string[], haze: string[] }. We pick from
+ * "storm" since overload errors mean the API is fully failing.
+ */
+function resolveOverloadedErrorMessage(): string {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    // Resolve workspace from cwd (gateway runs with cwd = workspace)
+    const candidates = [
+      path.join(process.cwd(), "memory", "fog-phrases.json"),
+      path.join(process.env.OPENCLAW_WORKSPACE || "", "memory", "fog-phrases.json"),
+    ];
+    for (const candidate of candidates) {
+      if (!fs.existsSync(candidate)) continue;
+      const phrases = JSON.parse(fs.readFileSync(candidate, "utf8"));
+      const pool = phrases.storm || phrases.fog || [];
+      if (pool.length > 0) {
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
+    }
+  } catch {
+    // Fall through to default
+  }
+  return OVERLOADED_ERROR_USER_MESSAGE_DEFAULT;
+}
 
 function formatRateLimitOrOverloadedErrorCopy(raw: string): string | undefined {
   if (isRateLimitErrorMessage(raw)) {
     return RATE_LIMIT_ERROR_USER_MESSAGE;
   }
   if (isOverloadedErrorMessage(raw)) {
-    return OVERLOADED_ERROR_USER_MESSAGE;
+    return resolveOverloadedErrorMessage();
   }
   return undefined;
 }
