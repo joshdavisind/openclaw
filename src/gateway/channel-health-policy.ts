@@ -51,7 +51,13 @@ function isManagedAccount(snapshot: ChannelHealthSnapshot): boolean {
 const BUSY_ACTIVITY_STALE_THRESHOLD_MS = 25 * 60_000;
 // Keep these shared between the background health monitor and on-demand readiness
 // probes so both surfaces evaluate channel lifecycle windows consistently.
-export const DEFAULT_CHANNEL_STALE_EVENT_THRESHOLD_MS = 30 * 60_000;
+// Tightened from 30 minutes to 5 minutes. The half-dead socket problem
+// (connected but not delivering events) typically lasts 5-15 minutes.
+// A 30-minute threshold misses these entirely. 5 minutes catches them
+// while still allowing for quiet periods (weekends, nights — the health
+// monitor only runs this check when the channel is connected and has
+// previously received events, so idle channels are not affected).
+export const DEFAULT_CHANNEL_STALE_EVENT_THRESHOLD_MS = 5 * 60_000;
 export const DEFAULT_CHANNEL_CONNECT_GRACE_MS = 120_000;
 
 export function evaluateChannelHealth(
