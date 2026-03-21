@@ -203,11 +203,16 @@ RUN apt-get update && \
       openssh-client \
       syncthing \
       ffmpeg \
+      logrotate \
     && \
     echo 'node ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/dpkg, /usr/bin/apt' \
       > /etc/sudoers.d/vesper-maintenance && \
     chmod 0440 /etc/sudoers.d/vesper-maintenance && \
     groupadd -g 988 docker 2>/dev/null; usermod -aG docker node && \
+    # Logrotate config for perf.jsonl — symlinked from workspace at runtime
+    # The workspace config file is at config/logrotate-vesper-perf
+    mkdir -p /etc/logrotate.d && \
+    ln -sf /home/node/.openclaw/workspace/config/logrotate-vesper-perf /etc/logrotate.d/vesper-perf && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
