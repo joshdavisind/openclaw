@@ -900,9 +900,26 @@ export async function runMissedJobs(
       applyOutcomeToStoredJob(state, result);
     }
 
-    // Preserve any new past-due nextRunAtMs values that became due while
-    // startup catch-up was running. They should execute on a future tick
-    // instead of being silently advanced.
+    // After missed-job catch-up, ensure all completed jobs have nextRunAtMs
+    // strictly in the future. Without this, a forceReload from disk can
+    // restore a stale nextRunAtMs, causing the normal timer path
+    // (nowMs >= nextRunAtMs) to re-fire the job (#double-fire-weekly).
+    const postCatchupNow = state.deps.nowMs();
+    for (const candidate of startupCandidates) {
+      const job = state.store?.jobs.find((j) => j.id === candidate.jobId);
+      if (!job || !job.enabled) {
+        continue;
+      }
+      const next = job.state.nextRunAtMs;
+      if (typeof next === "number" && next <= postCatchupNow) {
+        // nextRunAtMs is still in the past after applyJobResult — force advance
+        const freshNext = computeJobNextRunAtMs(job, postCatchupNow);
+        if (typeof freshNext === "number" && freshNext > postCatchupNow) {
+          job.state.nextRunAtMs = freshNext;
+        }
+      }
+    }
+
     recomputeNextRunsForMaintenance(state);
     await persist(state);
   });
