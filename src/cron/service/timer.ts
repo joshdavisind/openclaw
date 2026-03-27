@@ -1057,8 +1057,63 @@ export async function executeJobCore(
     }
   }
 
+  // ── scriptExec: run a script without an LLM session (GOR-495) ────────────
+  // Zero token cost. Used for geofence checks, health pings, data ingestion,
+  // log rotation — anything deterministic that doesn't need LLM reasoning.
+  if (job.payload.kind === "scriptExec") {
+    if (abortSignal?.aborted) {
+      return resolveAbortError();
+    }
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFileAsync = promisify(execFile);
+
+    const command = (job.payload as any).command as string;
+    if (!command) {
+      return { status: "error", error: "scriptExec requires payload.command" };
+    }
+
+    // Resolve workspace from store path (storePath is .openclaw/cron/jobs.json → workspace is two levels up)
+    const { dirname, resolve } = await import("node:path");
+    const defaultCwd = resolve(dirname(state.deps.storePath), "..", "workspace");
+    const cwd = (job.payload as any).cwd ?? defaultCwd;
+    const timeoutMs = resolveCronJobTimeoutMs(job) ?? 90_000;
+    const parts = command.split(/\s+/);
+    const bin = parts[0]!;
+    const args = parts.slice(1);
+
+    try {
+      const { stdout, stderr } = await execFileAsync(bin, args, {
+        cwd,
+        timeout: timeoutMs,
+        maxBuffer: 1024 * 1024, // 1MB
+        env: { ...process.env, CRON_JOB_ID: job.id, CRON_JOB_NAME: job.name ?? "" },
+        signal: abortSignal ?? undefined,
+      });
+
+      const output = (stdout || "").trim();
+      const errOutput = (stderr || "").trim();
+      const summary = output.slice(0, 500) || "(no output)";
+
+      state.deps.log.info({ job: job.name, output: summary.slice(0, 100) }, `[cron:scriptExec] ok`);
+      if (errOutput) {
+        state.deps.log.warn({ job: job.name, stderr: errOutput.slice(0, 200) }, `[cron:scriptExec] stderr`);
+      }
+
+      return { status: "ok" as const, summary };
+    } catch (err: any) {
+      const errorMessage = err.killed
+        ? `scriptExec timed out after ${timeoutMs}ms`
+        : `scriptExec failed: ${err.message?.slice(0, 200) ?? String(err)}`;
+
+      state.deps.log.error({ job: job.name, error: errorMessage }, `[cron:scriptExec] failed`);
+
+      return { status: "error" as const, error: errorMessage };
+    }
+  }
+
   if (job.payload.kind !== "agentTurn") {
-    return { status: "skipped", error: "isolated job requires payload.kind=agentTurn" };
+    return { status: "skipped", error: "isolated job requires payload.kind=agentTurn or scriptExec" };
   }
   if (abortSignal?.aborted) {
     return resolveAbortError();

@@ -116,6 +116,18 @@ export const CronScheduleSchema = Type.Union([
   ),
 ]);
 
+const CronScriptExecPayloadSchema = Type.Object(
+  {
+    kind: Type.Literal("scriptExec"),
+    command: NonEmptyString,
+    cwd: Type.Optional(Type.String()),
+    timeoutSeconds: Type.Optional(Type.Integer({ minimum: 0 })),
+    escalateOnError: Type.Optional(Type.Boolean()),
+    escalateAgent: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
 export const CronPayloadSchema = Type.Union([
   Type.Object(
     {
@@ -125,6 +137,7 @@ export const CronPayloadSchema = Type.Union([
     { additionalProperties: false },
   ),
   cronAgentTurnPayloadSchema({ message: NonEmptyString }),
+  CronScriptExecPayloadSchema,
 ]);
 
 export const CronPayloadPatchSchema = Type.Union([

@@ -77,7 +77,21 @@ export type CronFailureAlert = {
   accountId?: string;
 };
 
-export type CronPayload = { kind: "systemEvent"; text: string } | CronAgentTurnPayload;
+export type CronScriptExecPayload = {
+  kind: "scriptExec";
+  /** Shell command to execute (e.g., "node projects/ephyra/ephyra-cron.js") */
+  command: string;
+  /** Working directory (defaults to workspace root) */
+  cwd?: string;
+  /** Timeout in seconds (defaults to job-level timeout) */
+  timeoutSeconds?: number;
+  /** If true and the job hits consecutiveErrors threshold, spawn an agentTurn to diagnose */
+  escalateOnError?: boolean;
+  /** Agent to escalate to (defaults to "main") */
+  escalateAgent?: string;
+};
+
+export type CronPayload = { kind: "systemEvent"; text: string } | CronAgentTurnPayload | CronScriptExecPayload;
 
 export type CronPayloadPatch = { kind: "systemEvent"; text?: string } | CronAgentTurnPayloadPatch;
 
