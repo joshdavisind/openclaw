@@ -83,8 +83,8 @@ export function normalizePayloadToSystemText(payload: CronPayload) {
   if (payload.kind === "systemEvent") {
     return payload.text.trim();
   }
-  if (payload.kind === "scriptExec") {
-    return payload.command.trim();
+  if (payload.kind === "scriptExec" || (payload as any).kind === "scriptexec") {
+    return (payload as any).command?.trim?.() ?? "";
   }
   return payload.message.trim();
 }

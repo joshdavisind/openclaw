@@ -1060,7 +1060,7 @@ export async function executeJobCore(
   // ── scriptExec: run a script without an LLM session (GOR-495) ────────────
   // Zero token cost. Used for geofence checks, health pings, data ingestion,
   // log rotation — anything deterministic that doesn't need LLM reasoning.
-  if (job.payload.kind === "scriptExec") {
+  if (job.payload.kind === "scriptExec" || (job.payload as any).kind === "scriptexec") {
     if (abortSignal?.aborted) {
       return resolveAbortError();
     }
